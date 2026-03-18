@@ -249,7 +249,7 @@ tr:last-child td{border-bottom:none}tr.hover:hover td,tr:hover td{background:#F9
     <div class="sb-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="inv-q" placeholder="Buscar..." oninput="renderInv()"/></div>
     <select class="fs" id="inv-cat" onchange="renderInv()"><option value="Todas">Todas</option></select>
     <select class="fs" id="inv-st" onchange="renderInv()"><option value="Todos">Todo</option><option value="ok">En Stock</option><option value="low">Stock Bajo</option><option value="out">Agotado</option></select>
-    <button class="btn bp2" onclick="reqAdmin(()=>openProdModalInner())"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar</button>
+    <button class="btn bp2" onclick="openProdModalInner_guarded()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar</button>
   </div>
   <div class="sh"><div><span class="st">Productos</span><span class="sc" id="inv-count"></span></div></div>
   <div class="tw"><table><thead><tr><th>Producto / Código</th><th>Categoría</th><th>Stock</th><th>Unidad</th><th>Precio</th><th>Valor Stock</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="inv-body"></tbody></table></div>
@@ -714,7 +714,7 @@ function renderInv(){
   const isRenta=p=>p.cat==='Renta de Equipo';
   document.getElementById('inv-body').innerHTML=rows.map(p=>{
     const s=ss(p);const sl=s==='out'?'Agotado':s==='low'?'Stock Bajo':'En Stock';
-    return`<tr><td><div class="pn">${p.name}</div><div class="ps">${p.sku}${p.desc?' — '+p.desc:''}</div></td><td><span class="cb c${ck(p.cat)}">${p.cat}</span></td><td><strong>${isRenta(p)&&p.stock>=99?'∞':p.stock}</strong></td><td style="color:var(--text3)">${p.unit}</td><td><span class="pv">${fmtQ(p.price)}</span></td><td><span class="pv">${isRenta(p)&&p.stock>=99?'—':fmtQ(p.price*p.stock)}</span></td><td><span class="sb2 s${s==='ok'?'Ok':s==='low'?'Lo':'Out'}"><span class="sd"></span>${sl}</span></td><td style="white-space:nowrap"><button class="btn bo btn-sm" style="margin-right:4px" onclick="reqAdmin(()=>editProdInner(${p.id}))">Editar</button><button class="btn btn-sm br" onclick="reqAdmin(()=>delProdInner(${p.id}))">Eliminar</button></td></tr>`;
+    return`<tr><td><div class="pn">${p.name}</div><div class="ps">${p.sku}${p.desc?' — '+p.desc:''}</div></td><td><span class="cb c${ck(p.cat)}">${p.cat}</span></td><td><strong>${isRenta(p)&&p.stock>=99?'∞':p.stock}</strong></td><td style="color:var(--text3)">${p.unit}</td><td><span class="pv">${fmtQ(p.price)}</span></td><td><span class="pv">${isRenta(p)&&p.stock>=99?'—':fmtQ(p.price*p.stock)}</span></td><td><span class="sb2 s${s==='ok'?'Ok':s==='low'?'Lo':'Out'}"><span class="sd"></span>${sl}</span></td><td style="white-space:nowrap"><button class="btn bo btn-sm" style="margin-right:4px" onclick="editProdInner(${p.id})">Editar</button><button class="btn btn-sm br" onclick="delProdInner(${p.id})">Eliminar</button></td></tr>`;
   }).join('');
   updateAllMetrics();
 }
@@ -729,6 +729,9 @@ function openProdModalInner(){
   document.getElementById('modal-prod').classList.add('open');
 }
 function editProdInner(id){
+  reqAdmin(()=>_editProd(id));
+}
+function _editProd(id){
   const p=products.find(x=>x.id===id);if(!p)return;
   editingProd=true;
   document.getElementById('mprod-t').textContent='Editar Producto';
@@ -758,6 +761,9 @@ function saveProd(){
   closeModal('modal-prod');renderInv();renderPicker();saveAll();
 }
 function delProdInner(id){
+  reqAdmin(()=>_delProd(id));
+}
+function _delProd(id){
   if(!confirm('¿Eliminar este producto?'))return;
   products=products.filter(p=>p.id!==id);delete cart[id];renderInv();renderCartUI();renderPicker();saveAll();toast('Producto eliminado');
 }
@@ -1436,6 +1442,7 @@ importBackup = function(input){
 
 // alias inner admin-protected functions
 function openProdModal(){ openProdModalInner(); }
+function openProdModalInner_guarded(){ reqAdmin(()=>openProdModalInner()); }
 
 // ── INIT ──
 (async function(){
