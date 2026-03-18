@@ -714,7 +714,7 @@ function renderInv(){
   const isRenta=p=>p.cat==='Renta de Equipo';
   document.getElementById('inv-body').innerHTML=rows.map(p=>{
     const s=ss(p);const sl=s==='out'?'Agotado':s==='low'?'Stock Bajo':'En Stock';
-    return`<tr><td><div class="pn">${p.name}</div><div class="ps">${p.sku}${p.desc?' — '+p.desc:''}</div></td><td><span class="cb c${ck(p.cat)}">${p.cat}</span></td><td><strong>${isRenta(p)&&p.stock>=99?'∞':p.stock}</strong></td><td style="color:var(--text3)">${p.unit}</td><td><span class="pv">${fmtQ(p.price)}</span></td><td><span class="pv">${isRenta(p)&&p.stock>=99?'—':fmtQ(p.price*p.stock)}</span></td><td><span class="sb2 s${s==='ok'?'Ok':s==='low'?'Lo':'Out'}"><span class="sd"></span>${sl}</span></td><td style="white-space:nowrap"><button class="btn bo btn-sm" style="margin-right:4px" onclick="editProd(${p.id})">Editar</button><button class="btn btn-sm br" onclick="delProd(${p.id})">Eliminar</button></td></tr>`;
+    return`<tr><td><div class="pn">${p.name}</div><div class="ps">${p.sku}${p.desc?' — '+p.desc:''}</div></td><td><span class="cb c${ck(p.cat)}">${p.cat}</span></td><td><strong>${isRenta(p)&&p.stock>=99?'∞':p.stock}</strong></td><td style="color:var(--text3)">${p.unit}</td><td><span class="pv">${fmtQ(p.price)}</span></td><td><span class="pv">${isRenta(p)&&p.stock>=99?'—':fmtQ(p.price*p.stock)}</span></td><td><span class="sb2 s${s==='ok'?'Ok':s==='low'?'Lo':'Out'}"><span class="sd"></span>${sl}</span></td><td style="white-space:nowrap"><button class="btn bo btn-sm" style="margin-right:4px" onclick="reqAdmin(()=>editProdInner(${p.id}))">Editar</button><button class="btn btn-sm br" onclick="reqAdmin(()=>delProdInner(${p.id}))">Eliminar</button></td></tr>`;
   }).join('');
   updateAllMetrics();
 }
