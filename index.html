@@ -1129,7 +1129,7 @@ function renderPicker(){
   }).join('');
 }
 function pd(id,d){pickerQtys[id]=Math.max(1,(pickerQtys[id]||1)+d);const el=document.getElementById('pq'+id);if(el)el.value=pickerQtys[id];}
-function pdSet(id,val){const n=parseInt(val);if(!isNaN(n)&&n>0)pickerQtys[id]=n;}
+function pdSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0)pickerQtys[id]=n;}
 function addToCart(id){
   const p=products.find(x=>x.id===id);if(!p)return;
   cart[id]=(cart[id]||0)+(pickerQtys[id]||1);
@@ -1153,7 +1153,7 @@ function renderCartUI(){
   document.getElementById('nc-tot').textContent=fmtQ(sub);
 }
 function cdelta(id,d){cart[id]=Math.max(1,(cart[id]||1)+d);renderCartUI();}
-function cSet(id,val){const n=parseInt(val);if(!isNaN(n)&&n>0){cart[id]=n;const el=document.getElementById('nc-sub');if(el){let sub=0;Object.keys(cart).map(Number).filter(i=>cart[i]>0).forEach(i=>{const p=products.find(x=>x.id===i);if(p)sub+=p.price*cart[i];});document.getElementById('nc-sub').textContent=fmtQ(sub);document.getElementById('nc-tot').textContent=fmtQ(sub);}}}
+function cSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0){cart[id]=n;const el=document.getElementById('nc-sub');if(el){let sub=0;Object.keys(cart).map(Number).filter(i=>cart[i]>0).forEach(i=>{const p=products.find(x=>x.id===i);if(p)sub+=p.price*cart[i];});document.getElementById('nc-sub').textContent=fmtQ(sub);document.getElementById('nc-tot').textContent=fmtQ(sub);}}}
 function rmCart(id){delete cart[id];renderCartUI();}
 function clearCart(){cart={};renderCartUI();}
 
@@ -1169,7 +1169,7 @@ function saveQuote(){
   const notas=document.getElementById('nc-notas').value.trim();
   let sub=0;
   const items=ids.map(id=>{
-    const p=products.find(x=>x.id===id);const qty=cart[id];const tot=p.price*qty;sub+=tot;
+    const p=products.find(x=>x.id===id);const qty=Number(cart[id]);const tot=p.price*qty;sub+=tot;
     return{id:p.id,name:p.name,sku:p.sku,cat:p.cat,unit:p.unit,qty,price:p.price,total:tot};
   });
   if(editingCotId!==null){
@@ -1287,7 +1287,7 @@ function delCot(id){
 function confirmPurchase(){
   if(pendingConfirmId===null)return;
   const c=cotizaciones.find(x=>x.id===pendingConfirmId);if(!c)return;
-  c.items.forEach(it=>{const p=products.find(x=>x.id===it.id);if(p&&p.stock<99)p.stock=Math.max(0,p.stock-it.qty);});
+  c.items.forEach(it=>{const p=products.find(x=>x.id===it.id);if(p&&p.stock<99)p.stock=Math.max(0,p.stock-Number(it.qty));});
   c.status='Confirmada';c.confirmedAt=new Date().toISOString();
   closeModal('modal-conf');pendingConfirmId=null;
   renderInv();renderCots();saveAll();toast('✅ Compra confirmada — Inventario actualizado');
