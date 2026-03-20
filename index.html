@@ -1537,13 +1537,16 @@ function genPDF(c){
   // Discount + Total box
   const baseY = (neededY > H) ? 20 : afterTable+4;
   let totY = baseY;
+  const totBoxW=68, totBoxX=W-10-totBoxW;
   if(c.descuento>0){
     const descAmt=c.subtotal*(c.descuento/100);
+    const descAmtStr='Q. '+(Math.round(descAmt*100)/100).toFixed(2);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(180,50,50);
-    doc.text('Descuento ('+c.descuento+'%):  − Q. '+parseFloat(descAmt).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+5, {align:'right'});
+    // Label left-aligned at table left margin, amount right-aligned at table right margin
+    doc.text('Descuento ('+c.descuento+'%):', 10, totY+5);
+    doc.text('- '+descAmtStr, W-10, totY+5, {align:'right'});
     totY += 8;
   }
-  const totBoxW=68, totBoxX=W-10-totBoxW;
   doc.setFillColor(...DARK); doc.rect(totBoxX,totY,totBoxW,10,'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...WH);
   doc.text('Total:  Q. '+parseFloat(c.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+6.8, {align:'right'});
