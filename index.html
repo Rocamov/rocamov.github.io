@@ -1291,7 +1291,8 @@ function confirmPurchase(){
     const itId=parseInt(it.id,10);
     const itQty=parseInt(it.qty,10)||0;
     const p=products.find(x=>x.id===itId||x.id===it.id);
-    if(p&&p.stock<99&&itQty>0) p.stock=Math.max(0,p.stock-itQty);
+    const isRentaInf=p&&p.cat==='Renta de Equipo'&&p.stock>=99;
+    if(p&&!isRentaInf&&itQty>0) p.stock=Math.max(0,p.stock-itQty);
   });
   c.status='Confirmada';c.confirmedAt=new Date().toISOString();
   closeModal('modal-conf');pendingConfirmId=null;
