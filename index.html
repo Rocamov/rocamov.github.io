@@ -169,7 +169,7 @@ tr:last-child td{border-bottom:none}tr.hover:hover td,tr:hover td{background:#F9
 /* PIN OVERLAY */
 .pin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center}
 .pin-overlay.open{display:flex}
-.pin-box{background:var(--surface);border-radius:var(--rl);width:340px;overflow:hidden;text-align:center}
+.pin-box{background:var(--surface);border-radius:var(--rl);width:340px;overflow:hidden;text-align:center;position:relative}
 .pin-hd{background:var(--negro);border-bottom:3px solid var(--naranja);padding:1.25rem;font-family:var(--font-d);font-size:22px;color:#fff;letter-spacing:2px}
 .pin-body{padding:1.5rem}
 .pin-icon{font-size:36px;margin-bottom:.75rem}
@@ -471,7 +471,7 @@ tr:last-child td{border-bottom:none}tr.hover:hover td,tr:hover td{background:#F9
 <!-- PIN OVERLAY -->
 <div class="pin-overlay" id="pin-overlay">
   <div class="pin-box">
-    <div class="pin-hd">🔐 ACCESO ADMIN</div>
+    <div class="pin-hd">🔐 ACCESO ADMIN<button onclick="closePinOverlay()" style="position:absolute;right:1rem;top:1rem;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);line-height:1" title="Cancelar">×</button></div>
     <div class="pin-body">
       <div class="pin-lbl">Ingresá el PIN de administrador para continuar</div>
       <div class="pin-dots"><div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div><div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div></div>
@@ -1209,6 +1209,7 @@ function renderCots(){
         <button class="btn bo btn-sm" onclick="verCot(${c.id})">Ver</button>
         ${c.status==='Pendiente'?`<button class="btn btn-sm" style="background:var(--nar-light);color:var(--naranja2);border-color:var(--naranja)" onclick="editCot(${c.id})">Editar</button>
         <button class="btn bs btn-sm" onclick="askConfirm(${c.id})">Confirmar</button>`:''}
+        <button class="btn btn-sm br" onclick="delCot(${c.id})" title="Eliminar cotización">🗑</button>
         <button class="btn bd btn-sm" onclick="exportCotPDF(${c.id})">PDF</button>
       </div>
     </div>
@@ -1276,6 +1277,12 @@ function askConfirm(id){
   document.getElementById('conf-msg').textContent=`Confirmar cotización #${String(c.id).padStart(3,'0')} — ${c.cliente}`;
   document.getElementById('conf-det').textContent=`Se descontarán ${c.items.length} producto(s) del inventario. Total: ${fmtQ(c.total)}`;
   document.getElementById('modal-conf').classList.add('open');
+}
+function delCot(id){
+  const c=cotizaciones.find(x=>x.id===id);if(!c)return;
+  if(!confirm('¿Eliminar cotización #'+String(c.id).padStart(3,'0')+' — '+c.cliente+'?\n\nEsta acción no se puede deshacer.'))return;
+  cotizaciones=cotizaciones.filter(x=>x.id!==id);
+  renderCots();updateAllMetrics();saveAll();toast('Cotización eliminada');
 }
 function confirmPurchase(){
   if(pendingConfirmId===null)return;
@@ -1471,6 +1478,12 @@ function genPDF(c){
   doc.setFontSize(34);
   doc.setTextColor(...OR);
   doc.text('Cotizaci\u00f3n', W/2, logoY+logoH+14, {align:'center'});
+  // ── Cotización number ──
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(11);
+  doc.setTextColor(100,105,112);
+  const cotNum='N\u00ba '+String(c.id).padStart(3,'0');
+  doc.text(cotNum, W/2, logoY+logoH+22, {align:'center'});
 
   // ── "Datos del Cliente" pill ──
   const bodyY = logoY+logoH+24;
