@@ -1287,7 +1287,12 @@ function delCot(id){
 function confirmPurchase(){
   if(pendingConfirmId===null)return;
   const c=cotizaciones.find(x=>x.id===pendingConfirmId);if(!c)return;
-  c.items.forEach(it=>{const p=products.find(x=>x.id===it.id);if(p&&p.stock<99)p.stock=Math.max(0,p.stock-Number(it.qty));});
+  c.items.forEach(it=>{
+    const itId=parseInt(it.id,10);
+    const itQty=parseInt(it.qty,10)||0;
+    const p=products.find(x=>x.id===itId||x.id===it.id);
+    if(p&&p.stock<99&&itQty>0) p.stock=Math.max(0,p.stock-itQty);
+  });
   c.status='Confirmada';c.confirmedAt=new Date().toISOString();
   closeModal('modal-conf');pendingConfirmId=null;
   renderInv();renderCots();saveAll();toast('✅ Compra confirmada — Inventario actualizado');
@@ -1751,8 +1756,24 @@ async function loadAll(){
     const snap = await db.collection('rocamov').doc('state').get();
     if(!snap.exists) return false;
     const d = snap.data();
-    if(d.products)     { products     = d.products;     nextProdId  = d.nextProdId  || 100; }
-    if(d.cotizaciones) { cotizaciones  = d.cotizaciones; nextCotId   = d.nextCotId   || 100; }
+    if(d.products) {
+      products = d.products.map(p=>({...p, stock: parseInt(p.stock,10)||0, price: Number(p.price)||0, cost: Number(p.cost)||0, min: parseInt(p.min,10)||0 }));
+      nextProdId = d.nextProdId || 100;
+    }
+    if(d.cotizaciones) {
+      cotizaciones = d.cotizaciones.map(c=>({
+        ...c,
+        id: parseInt(c.id,10)||c.id,
+        items: (c.items||[]).map(it=>({
+          ...it,
+          id: parseInt(it.id,10)||it.id,
+          qty: parseInt(it.qty,10)||Number(it.qty)||0,
+          price: Number(it.price)||0,
+          total: Number(it.total)||0
+        }))
+      }));
+      nextCotId = d.nextCotId || 100;
+    }
     if(d.salesHistory) { salesHistory  = d.salesHistory; }
     if(d.fletes)       { fletes        = d.fletes;       nextFleteId = d.nextFleteId || 100; }
     if(d.categories)   { categories    = d.categories; }
