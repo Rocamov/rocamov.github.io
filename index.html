@@ -294,6 +294,7 @@ tr:last-child td{border-bottom:none}tr.hover:hover td,tr:hover td{background:#F9
     <div id="cart-list"></div>
     <div class="osum" id="nc-sum" style="display:none">
       <div class="sr"><span>Subtotal</span><span id="nc-sub">Q. 0.00</span></div>
+      <div class="sr" style="align-items:center;gap:6px"><span style="white-space:nowrap">Descuento (%)</span><input type="number" id="nc-desc" min="0" max="100" step="0.5" placeholder="0" style="width:60px;padding:3px 6px;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="renderCartUI()"/><span id="nc-desc-amt" style="margin-left:auto;color:var(--rojo);font-size:13px"></span></div>
       <div class="sr tot"><span>TOTAL</span><span id="nc-tot">Q. 0.00</span></div>
     </div>
     <div class="ofoot" id="nc-foot" style="display:none">
@@ -1150,12 +1151,17 @@ function renderCartUI(){
     return`<div class="ci"><div><div class="cin">${p.name}</div><div class="ciu">${fmtQ(p.price)} / ${p.unit}</div></div><div class="qc"><button class="qb" onclick="cdelta(${id},-1)">−</button><input class="qinput" type="number" min="1" value="${qty}" oninput="cSet(${id},this.value)" style="width:64px"/><button class="qb" onclick="cdelta(${id},1)">+</button></div><div class="cis">${fmtQ(s)}</div><button class="crm" onclick="rmCart(${id})">×</button></div>`;
   }).join('');
   document.getElementById('nc-sub').textContent=fmtQ(sub);
-  document.getElementById('nc-tot').textContent=fmtQ(sub);
+  const descPct=parseFloat(document.getElementById('nc-desc')?.value)||0;
+  const descAmt=descPct>0?sub*(descPct/100):0;
+  const tot=sub-descAmt;
+  const descEl=document.getElementById('nc-desc-amt');
+  if(descEl) descEl.textContent=descAmt>0?'− '+fmtQ(descAmt):'';
+  document.getElementById('nc-tot').textContent=fmtQ(tot);
 }
 function cdelta(id,d){cart[id]=Math.max(1,(cart[id]||1)+d);renderCartUI();}
-function cSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0){cart[id]=n;const el=document.getElementById('nc-sub');if(el){let sub=0;Object.keys(cart).map(Number).filter(i=>cart[i]>0).forEach(i=>{const p=products.find(x=>x.id===i);if(p)sub+=p.price*cart[i];});document.getElementById('nc-sub').textContent=fmtQ(sub);document.getElementById('nc-tot').textContent=fmtQ(sub);}}}
+function cSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0){cart[id]=n;const el=document.getElementById('nc-sub');if(el){let sub=0;Object.keys(cart).map(Number).filter(i=>cart[i]>0).forEach(i=>{const p=products.find(x=>x.id===i);if(p)sub+=p.price*cart[i];});document.getElementById('nc-sub').textContent=fmtQ(sub);const _dp=parseFloat(document.getElementById('nc-desc')?.value)||0;const _da=_dp>0?sub*(_dp/100):0;const _dt=sub-_da;const _de=document.getElementById('nc-desc-amt');if(_de)_de.textContent=_da>0?'− '+fmtQ(_da):'';document.getElementById('nc-tot').textContent=fmtQ(_dt);}}}
 function rmCart(id){delete cart[id];renderCartUI();}
-function clearCart(){cart={};renderCartUI();}
+function clearCart(){cart={};const d=document.getElementById('nc-desc');if(d)d.value='';renderCartUI();}
 
 // ═══════════ GUARDAR COTIZACIÓN ═══════════
 function saveQuote(){
@@ -1167,6 +1173,7 @@ function saveQuote(){
   const proj=document.getElementById('nc-proj').value.trim();
   const pago=document.getElementById('nc-pago').value;
   const notas=document.getElementById('nc-notas').value.trim();
+  const descPct=parseFloat(document.getElementById('nc-desc').value)||0;
   let sub=0;
   const items=ids.map(id=>{
     const p=products.find(x=>x.id===id);const qty=Number(cart[id]);const tot=p.price*qty;sub+=tot;
@@ -1174,11 +1181,11 @@ function saveQuote(){
   });
   if(editingCotId!==null){
     const c=cotizaciones.find(x=>x.id===editingCotId);
-    Object.assign(c,{cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,total:sub});
+    const descAmt=descPct>0?sub*(descPct/100):0;const totalFinal=sub-descAmt;Object.assign(c,{cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:descPct,total:totalFinal});
     toast('Cotización actualizada ✓');editingCotId=null;
     document.getElementById('nc-title').textContent='Nueva Cotización';
   } else {
-    cotizaciones.push({id:nextCotId++,cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,total:sub,status:'Pendiente',createdAt:new Date().toISOString()});
+    const descAmt2=descPct>0?sub*(descPct/100):0;const totalFinal2=sub-descAmt2;cotizaciones.push({id:nextCotId++,cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:descPct,total:totalFinal2,status:'Pendiente',createdAt:new Date().toISOString()});
     toast('Cotización guardada ✓');
   }
   saveAll();
@@ -1248,7 +1255,8 @@ function verCot(id){
   const ft=document.getElementById('ver-ft');
   ft.innerHTML=`<button class="btn bo" onclick="closeModal('modal-ver')">Cerrar</button>
     <button class="btn bd" onclick="exportCotPDF(${c.id})">PDF</button>
-    ${c.status==='Pendiente'?`<button class="btn bp2" onclick="editCot(${c.id});closeModal('modal-ver')">Editar</button>
+    ${c.descuento>0?`<div style="text-align:right;padding:6px 12px;font-size:13px;color:var(--rojo)">Descuento (${c.descuento}%): − ${fmtQ(c.subtotal*(c.descuento/100))}</div>`:''}
+  ${c.status==='Pendiente'?`<button class="btn bp2" onclick="editCot(${c.id});closeModal('modal-ver')">Editar</button>
     <button class="btn bs" onclick="closeModal('modal-ver');askConfirm(${c.id})">Confirmar Compra</button>`:''}`;
   document.getElementById('modal-ver').classList.add('open');
 }
@@ -1264,7 +1272,7 @@ function editCot(id){
   document.getElementById('nc-proj').value=c.proyecto||'';
   document.getElementById('nc-pago').value=c.pago;
   document.getElementById('nc-notas').value=c.notas||'';
-  cart={};c.items.forEach(it=>{cart[it.id]=it.qty;});
+  cart={};c.items.forEach(it=>{cart[it.id]=it.qty;});const _dEl=document.getElementById('nc-desc');if(_dEl)_dEl.value=c.descuento||'';
   renderCartUI();renderPicker();
   goPage('nueva-cot',null);closeModal('modal-ver');
   toast('Editando cotización #'+String(c.id).padStart(3,'0'));
@@ -1433,7 +1441,7 @@ function exportPDF(){
   const notas=document.getElementById('nc-notas').value;
   let sub=0;
   const items=ids.map(id=>{const p=products.find(x=>x.id===id);const qty=cart[id];const tot=p.price*qty;sub+=tot;return{name:p.name,unit:p.unit,qty,price:p.price,total:tot};});
-  genPDF({id:'BORRADOR',cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,total:sub});
+  const _epd=parseFloat(document.getElementById('nc-desc').value)||0;const _epda=_epd>0?sub*(_epd/100):0;genPDF({id:'BORRADOR',cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:_epd,total:sub-_epda});
 }
 function exportCotPDF(id){const c=cotizaciones.find(x=>x.id===id);if(!c)return;genPDF(c);}
 function genPDF(c){
@@ -1441,161 +1449,127 @@ function genPDF(c){
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
   const W=doc.internal.pageSize.getWidth();
   const H=doc.internal.pageSize.getHeight();
-  const OR=[240,112,32];
-  const DARK=[42,52,70];
-  const LGRAY=[190,193,197];
-  const BK=[30,30,30];
-  const WH=[255,255,255];
+  const OR=[240,112,32], DARK=[42,52,70], LGRAY=[190,193,197], BK=[30,30,30], WH=[255,255,255];
 
-  // ── WHITE BACKGROUND ──
-  doc.setFillColor(255,255,255);
-  doc.rect(0,0,W,H,'F');
-
-  // ── TOP-LEFT corner triangles (dark + grey layered) ──
-  doc.setFillColor(...DARK);
-  doc.triangle(0,0, 58,0, 0,58,'F');
-  doc.setFillColor(...LGRAY);
-  doc.triangle(0,0, 36,0, 0,36,'F');
-  // diagonal line accents
+  // ══ PAGE 1 HEADER ══
+  doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
+  // Corner triangles
+  doc.setFillColor(...DARK); doc.triangle(0,0,58,0,0,58,'F');
+  doc.setFillColor(...LGRAY); doc.triangle(0,0,36,0,0,36,'F');
   doc.setDrawColor(100,105,112); doc.setLineWidth(0.3);
-  doc.line(0,66, 52,0);
-  doc.line(0,76, 60,0);
-
-  // ── TOP-RIGHT corner triangles ──
-  doc.setFillColor(...DARK);
-  doc.triangle(W,0, W-58,0, W,58,'F');
-  doc.setFillColor(...LGRAY);
-  doc.triangle(W,0, W-36,0, W,36,'F');
-  doc.line(W,66, W-52,0);
-  doc.line(W,76, W-60,0);
-
-  // ── GRUPO ATC LOGO — centered, real image ──
-  const logoW=42, logoH=42, logoX=W/2-logoW/2, logoY=8;
-  try{
-    doc.addImage('data:image/png;base64,'+ATC_B64,'PNG', logoX, logoY, logoW, logoH);
-  }catch(e){
-    // fallback text
-    doc.setFont('helvetica','bold'); doc.setFontSize(18);
-    doc.setTextColor(...DARK); doc.text('GRUPO ATC', W/2, logoY+20, {align:'center'});
-  }
-
-  // ── "Cotización" in large orange bold-italic ──
-  doc.setFont('helvetica','bolditalic');
-  doc.setFontSize(34);
-  doc.setTextColor(...OR);
+  doc.line(0,66,52,0); doc.line(0,76,60,0);
+  doc.setFillColor(...DARK); doc.triangle(W,0,W-58,0,W,58,'F');
+  doc.setFillColor(...LGRAY); doc.triangle(W,0,W-36,0,W,36,'F');
+  doc.line(W,66,W-52,0); doc.line(W,76,W-60,0);
+  // ATC logo
+  const logoW=42,logoH=42,logoX=W/2-logoW/2,logoY=8;
+  try{ doc.addImage('data:image/png;base64,'+ATC_B64,'PNG',logoX,logoY,logoW,logoH); }catch(e){}
+  // Title
+  doc.setFont('helvetica','bolditalic'); doc.setFontSize(34); doc.setTextColor(...OR);
   doc.text('Cotizaci\u00f3n', W/2, logoY+logoH+14, {align:'center'});
-  // ── Cotización number ──
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(11);
-  doc.setTextColor(100,105,112);
-  const cotNum='N\u00ba '+String(c.id).padStart(3,'0');
-  doc.text(cotNum, W/2, logoY+logoH+22, {align:'center'});
-
-  // ── "Datos del Cliente" pill ──
-  const bodyY = logoY+logoH+24;
-  doc.setFillColor(100,105,112);
-  doc.roundedRect(10, bodyY, 46, 7, 1.5,1.5,'F');
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(100,105,112);
+  doc.text('N\u00ba '+String(c.id).padStart(3,'0'), W/2, logoY+logoH+22, {align:'center'});
+  // Client data
+  const bodyY=logoY+logoH+28;
+  doc.setFillColor(100,105,112); doc.roundedRect(10,bodyY,46,7,1.5,1.5,'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...WH);
-  doc.text('Datos del Cliente', 33, bodyY+4.8, {align:'center'});
-
-  // ── CLIENT FIELDS ──
-  let fy = bodyY+13;
-  const lx=12, vx=50;
-  const clientFields=[
-    ['Cliente:', c.cliente||'\u2014'],
-    ['Fecha:', fDate(c.fecha)],
-    ['Forma de pago:', c.pago||'\u2014'],
-    ['Direcci\u00f3n/Proyecto:', c.proyecto||'\u2014'],
-  ];
-  doc.setFontSize(10);
-  clientFields.forEach(([lbl,val])=>{
-    doc.setFont('helvetica','bold'); doc.setTextColor(...BK);
-    doc.text(lbl, lx, fy);
+  doc.text('Datos del Cliente',33,bodyY+4.8,{align:'center'});
+  let fy=bodyY+13;
+  [['Cliente:', c.cliente||'\u2014'],['Fecha:', fDate(c.fecha)],
+   ['Forma de pago:', c.pago||'\u2014'],['Direcci\u00f3n/Proyecto:', c.proyecto||'\u2014']
+  ].forEach(([lbl,val])=>{
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(...BK); doc.text(lbl,12,fy);
     doc.setFont('helvetica','normal');
-    const lines=doc.splitTextToSize(val, W-vx-12);
-    doc.text(lines, vx, fy);
-    fy += (lines.length>1 ? lines.length*5.5 : 7);
+    const lines=doc.splitTextToSize(val,W-50-12);
+    doc.text(lines,50,fy); fy+=(lines.length>1?lines.length*5.5:7);
   });
 
-  // ── ITEMS TABLE ──
-  const tY=fy+5;
+  // ══ TABLE — single autoTable across all pages, no repeated header/footer ══
+  const tableStartY = fy+4;
+  // Footer height we need to reserve on LAST page only
+  const footerH = 62;
+
+  // We'll track pages to know which is last
+  let totalPages = 0;
+
   doc.autoTable({
-    startY: tY,
+    startY: tableStartY,
     head:[['Cantidad','Descripci\u00f3n','Precio Unitario','Total']],
     body: c.items.map(it=>[
-      it.qty,
-      it.name,
+      it.qty, it.name,
       'Q. '+parseFloat(it.price).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}),
       'Q. '+parseFloat(it.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2})
     ]),
-    headStyles:{fillColor:DARK, textColor:WH, fontStyle:'bold', fontSize:10, halign:'center', cellPadding:4},
-    bodyStyles:{fontSize:10, textColor:BK, cellPadding:4, halign:'center'},
+    headStyles:{fillColor:DARK, textColor:WH, fontStyle:'bold', fontSize:9, halign:'center', cellPadding:2.5},
+    bodyStyles:{fontSize:9, textColor:BK, cellPadding:2, halign:'center', minCellHeight:6},
     columnStyles:{
-      0:{cellWidth:32, halign:'center'},
-      1:{halign:'center'},
-      2:{halign:'center'},
-      3:{halign:'center', fontStyle:'bold'},
+      0:{cellWidth:28, halign:'center'},
+      1:{halign:'left'},
+      2:{cellWidth:40, halign:'center'},
+      3:{cellWidth:34, halign:'center', fontStyle:'bold'},
     },
     alternateRowStyles:{fillColor:[248,248,248]},
     tableLineColor:[210,212,215], tableLineWidth:0.3,
-    margin:{left:10, right:10},
+    margin:{left:10, right:10, top:10, bottom:10},
+    showHead:'everyPage',
+    didDrawPage(data){
+      totalPages = data.pageNumber;
+      // On pages 2+: plain white background only (no decorations)
+      if(data.pageNumber > 1){
+        // draw white bg behind where table will render
+        doc.setFillColor(255,255,255);
+        doc.rect(0,0,W,H,'F');
+      }
+    },
   });
 
-  const afterTable=doc.lastAutoTable.finalY;
+  const afterTable = doc.lastAutoTable.finalY;
+  const lastPage   = doc.lastAutoTable.pageNumber || totalPages;
 
-  // ── TOTAL BOX ──
-  const totBoxW=68, totBoxH=10, totBoxX=W-10-totBoxW, totBoxY=afterTable+3;
-  doc.setFillColor(...DARK);
-  doc.rect(totBoxX, totBoxY, totBoxW, totBoxH,'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...WH);
-  const totStr='Total:  Q. '+parseFloat(c.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2});
-  doc.text(totStr, W-13, totBoxY+6.8, {align:'right'});
-
-  // ── NOTES ──
-  if(c.notas){
-    doc.setFontSize(9); doc.setTextColor(100,100,100); doc.setFont('helvetica','italic');
-    doc.text('Notas: '+c.notas, 12, totBoxY+totBoxH+8);
+  // ══ FOOTER — only on last page ══
+  // If last page doesn't have enough space for footer+total, add new page
+  const neededY = afterTable + 14 + footerH; // total box + footer
+  if(neededY > H){
+    doc.addPage();
+    doc.setFillColor(255,255,255); doc.rect(0,0,W,H,'F');
   }
 
-  // ── FOOTER ──
-  // Footer decorative elements
-  const footTop = H-58;
+  // Discount + Total box
+  const baseY = (neededY > H) ? 20 : afterTable+4;
+  let totY = baseY;
+  if(c.descuento>0){
+    const descAmt=c.subtotal*(c.descuento/100);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(180,50,50);
+    doc.text('Descuento ('+c.descuento+'%):  − Q. '+parseFloat(descAmt).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+5, {align:'right'});
+    totY += 8;
+  }
+  const totBoxW=68, totBoxX=W-10-totBoxW;
+  doc.setFillColor(...DARK); doc.rect(totBoxX,totY,totBoxW,10,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...WH);
+  doc.text('Total:  Q. '+parseFloat(c.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+6.8, {align:'right'});
 
-  // Big orange diagonal band — bottom right
-  doc.setFillColor(...OR);
-  doc.triangle(W, footTop+10, W, H, W-60, H,'F');
-  // Grey diagonal overlay
-  doc.setFillColor(...LGRAY);
-  doc.triangle(W-14, footTop+28, W-14, H, W-70, H,'F');
-  // Thin dark diagonal lines bottom-left
+  if(c.notas){
+    doc.setFontSize(9); doc.setTextColor(100,100,100); doc.setFont('helvetica','italic');
+    doc.text('Notas: '+c.notas, 12, totY+16);
+  }
+
+  // Footer decorations (last page only)
+  const fT=H-58;
+  doc.setFillColor(...OR); doc.triangle(W,fT+10,W,H,W-60,H,'F');
+  doc.setFillColor(...LGRAY); doc.triangle(W-14,fT+28,W-14,H,W-70,H,'F');
   doc.setDrawColor(100,105,112); doc.setLineWidth(0.3);
-  doc.line(0, H-8, 26, H);
-  doc.line(0, H-15, 33, H);
-  doc.line(0, H-22, 40, H);
+  doc.line(0,H-8,26,H); doc.line(0,H-15,33,H); doc.line(0,H-22,40,H);
+  // Contact
+  const fcY=H-52;
+  doc.setFillColor(...OR); doc.circle(16,fcY+3,4,'F');
+  doc.setTextColor(...WH); doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text('T',16,fcY+4.5,{align:'center'});
+  doc.setTextColor(...BK); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('+502 5340 - 8748 / 5194 - 1866',23,fcY+4.5);
+  doc.setFillColor(...OR); doc.circle(16,fcY+13,4,'F');
+  doc.setTextColor(...WH); doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.text('@',16,fcY+14.2,{align:'center'});
+  doc.setTextColor(...BK); doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text('rocamov.tc@gmail.com',23,fcY+14);
+  // Logos
+  try{ doc.addImage('data:image/png;base64,'+COMBINED_B64,'PNG',W/2-28,H-58,56,56); }catch(e){}
 
-  // ── Contact info — positioned in upper part of footer zone ──
-  const fcY = H-52;
-  // Phone circle + text
-  doc.setFillColor(...OR); doc.circle(16, fcY+3, 4,'F');
-  doc.setTextColor(...WH); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-  doc.text('T', 16, fcY+4.5, {align:'center'});
-  doc.setTextColor(...BK); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('+502 5340 - 8748 / 5194 - 1866', 23, fcY+4.5);
-  // Email circle + text
-  doc.setFillColor(...OR); doc.circle(16, fcY+13, 4,'F');
-  doc.setTextColor(...WH); doc.setFont('helvetica','bold'); doc.setFontSize(8);
-  doc.text('@', 16, fcY+14.2, {align:'center'});
-  doc.setTextColor(...BK); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('rocamov.tc@gmail.com', 23, fcY+14);
-
-  // ── Combined logos — centered, sized to fit below contact without overlap ──
-  // 56x56mm keeps proportions and fits within footer space
-  const clW=56, clH=56, clX=W/2-clW/2, clY=H-clH-2;
-  try{
-    doc.addImage('data:image/png;base64,'+COMBINED_B64,'PNG', clX, clY, clW, clH);
-  }catch(e){}
-
-  // Save
   const fname='Cotizacion_Rocamov_'+(typeof c.id==='number'?String(c.id).padStart(3,'0'):'borrador')+'_'+c.cliente.replace(/\s+/g,'_')+'.pdf';
   doc.save(fname);
   toast('PDF descargado \u2713');
