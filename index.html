@@ -294,7 +294,6 @@ tr:last-child td{border-bottom:none}tr.hover:hover td,tr:hover td{background:#F9
     <div id="cart-list"></div>
     <div class="osum" id="nc-sum" style="display:none">
       <div class="sr"><span>Subtotal</span><span id="nc-sub">Q. 0.00</span></div>
-      <div class="sr" style="align-items:center;gap:6px"><span style="white-space:nowrap">Descuento (%)</span><input type="number" id="nc-desc" min="0" max="100" step="0.5" placeholder="0" style="width:60px;padding:3px 6px;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);color:var(--text);font-size:13px;text-align:center" oninput="renderCartUI()"/><span id="nc-desc-amt" style="margin-left:auto;color:var(--rojo);font-size:13px"></span></div>
       <div class="sr tot"><span>TOTAL</span><span id="nc-tot">Q. 0.00</span></div>
     </div>
     <div class="ofoot" id="nc-foot" style="display:none">
@@ -896,6 +895,7 @@ let nextProdId = 389;
 let cotizaciones = [];
 let nextCotId = 1;
 let cart = {};
+let cartDisc = {}; // descuento % por producto
 let pickerQtys = {};
 let editingCotId = null;
 let pendingConfirmId = null;
@@ -1147,21 +1147,23 @@ function renderCartUI(){
   let sub=0;
   cl.innerHTML=ids.map(id=>{
     const p=products.find(x=>x.id===id);if(!p)return'';
-    const qty=cart[id];const s=p.price*qty;sub+=s;
-    return`<div class="ci"><div><div class="cin">${p.name}</div><div class="ciu">${fmtQ(p.price)} / ${p.unit}</div></div><div class="qc"><button class="qb" onclick="cdelta(${id},-1)">−</button><input class="qinput" type="number" min="1" value="${qty}" oninput="cSet(${id},this.value)" style="width:64px"/><button class="qb" onclick="cdelta(${id},1)">+</button></div><div class="cis">${fmtQ(s)}</div><button class="crm" onclick="rmCart(${id})">×</button></div>`;
+    const qty=cart[id];
+    const disc=cartDisc[id]||0;
+    const baseS=p.price*qty;
+    const discAmt=disc>0?baseS*(disc/100):0;
+    const s=baseS-discAmt;
+    sub+=s;
+    const discHtml=disc>0?`<span style="color:var(--rojo);font-size:11px;margin-left:4px">-${disc}%</span>`:'';
+    return`<div class="ci"><div><div class="cin">${p.name}${discHtml}</div><div class="ciu">${fmtQ(p.price)} / ${p.unit}</div></div><div class="qc"><button class="qb" onclick="cdelta(${id},-1)">−</button><input class="qinput" type="number" min="1" value="${qty}" oninput="cSet(${id},this.value)" style="width:64px"/><button class="qb" onclick="cdelta(${id},1)">+</button><input type="number" min="0" max="100" step="0.5" value="${disc||''}" placeholder="%" oninput="setDisc(${id},this.value)" title="Descuento %" style="width:46px;padding:2px 4px;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);color:var(--rojo);font-size:12px;text-align:center;margin-left:4px"/></div><div class="cis">${fmtQ(s)}</div><button class="crm" onclick="rmCart(${id})">×</button></div>`;
   }).join('');
   document.getElementById('nc-sub').textContent=fmtQ(sub);
-  const descPct=parseFloat(document.getElementById('nc-desc')?.value)||0;
-  const descAmt=descPct>0?sub*(descPct/100):0;
-  const tot=sub-descAmt;
-  const descEl=document.getElementById('nc-desc-amt');
-  if(descEl) descEl.textContent=descAmt>0?'− '+fmtQ(descAmt):'';
-  document.getElementById('nc-tot').textContent=fmtQ(tot);
+  document.getElementById('nc-tot').textContent=fmtQ(sub);
 }
 function cdelta(id,d){cart[id]=Math.max(1,(cart[id]||1)+d);renderCartUI();}
-function cSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0){cart[id]=n;const el=document.getElementById('nc-sub');if(el){let sub=0;Object.keys(cart).map(Number).filter(i=>cart[i]>0).forEach(i=>{const p=products.find(x=>x.id===i);if(p)sub+=p.price*cart[i];});document.getElementById('nc-sub').textContent=fmtQ(sub);const _dp=parseFloat(document.getElementById('nc-desc')?.value)||0;const _da=_dp>0?sub*(_dp/100):0;const _dt=sub-_da;const _de=document.getElementById('nc-desc-amt');if(_de)_de.textContent=_da>0?'− '+fmtQ(_da):'';document.getElementById('nc-tot').textContent=fmtQ(_dt);}}}
-function rmCart(id){delete cart[id];renderCartUI();}
-function clearCart(){cart={};const d=document.getElementById('nc-desc');if(d)d.value='';renderCartUI();}
+function setDisc(id,val){const n=parseFloat(val);cartDisc[id]=(isNaN(n)||n<=0)?0:Math.min(n,100);renderCartUI();}
+function cSet(id,val){const n=parseInt(val,10);if(!isNaN(n)&&n>0){cart[id]=n;renderCartUI();}}
+function rmCart(id){delete cart[id];delete cartDisc[id];renderCartUI();}
+function clearCart(){cart={};cartDisc={};renderCartUI();}
 
 // ═══════════ GUARDAR COTIZACIÓN ═══════════
 function saveQuote(){
@@ -1173,19 +1175,21 @@ function saveQuote(){
   const proj=document.getElementById('nc-proj').value.trim();
   const pago=document.getElementById('nc-pago').value;
   const notas=document.getElementById('nc-notas').value.trim();
-  const descPct=parseFloat(document.getElementById('nc-desc').value)||0;
   let sub=0;
   const items=ids.map(id=>{
-    const p=products.find(x=>x.id===id);const qty=Number(cart[id]);const tot=p.price*qty;sub+=tot;
-    return{id:p.id,name:p.name,sku:p.sku,cat:p.cat,unit:p.unit,qty,price:p.price,total:tot};
+    const p=products.find(x=>x.id===id);const qty=Number(cart[id]);
+    const disc=cartDisc[id]||0;
+    const baseT=p.price*qty;const discAmt=disc>0?baseT*(disc/100):0;const tot=baseT-discAmt;
+    sub+=tot;
+    return{id:p.id,name:p.name,sku:p.sku,cat:p.cat,unit:p.unit,qty,price:p.price,disc,total:tot};
   });
   if(editingCotId!==null){
     const c=cotizaciones.find(x=>x.id===editingCotId);
-    const descAmt=descPct>0?sub*(descPct/100):0;const totalFinal=sub-descAmt;Object.assign(c,{cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:descPct,total:totalFinal});
+    Object.assign(c,{cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:0,total:sub});
     toast('Cotización actualizada ✓');editingCotId=null;
     document.getElementById('nc-title').textContent='Nueva Cotización';
   } else {
-    const descAmt2=descPct>0?sub*(descPct/100):0;const totalFinal2=sub-descAmt2;cotizaciones.push({id:nextCotId++,cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:descPct,total:totalFinal2,status:'Pendiente',createdAt:new Date().toISOString()});
+    cotizaciones.push({id:nextCotId++,cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:0,total:sub,status:'Pendiente',createdAt:new Date().toISOString()});
     toast('Cotización guardada ✓');
   }
   saveAll();
@@ -1241,21 +1245,26 @@ function verCot(id){
         <th style="padding:7px 10px;color:rgba(255,255,255,.65);text-align:left">Descripción</th>
         <th style="padding:7px 10px;color:rgba(255,255,255,.65);text-align:center">Cant.</th>
         <th style="padding:7px 10px;color:rgba(255,255,255,.65);text-align:right">P. Unit.</th>
+        <th style="padding:7px 10px;color:rgba(255,255,255,.65);text-align:right">Desc.</th>
         <th style="padding:7px 10px;color:rgba(255,255,255,.65);text-align:right">Total</th>
       </tr></thead><tbody>
-      ${c.items.map((it,i)=>`<tr style="${i%2===0?'background:var(--surface2)':''}">
+      ${c.items.map((it,i)=>{
+        const baseT=it.price*it.qty;
+        const discAmt=it.disc>0?baseT*(it.disc/100):0;
+        const finalT=baseT-discAmt;
+        return`<tr style="${i%2===0?'background:var(--surface2)':''}">
         <td style="padding:6px 10px">${it.name}</td>
         <td style="padding:6px 10px;text-align:center">${it.qty}</td>
         <td style="padding:6px 10px;text-align:right">${fmtQ(it.price)}</td>
-        <td style="padding:6px 10px;text-align:right;font-weight:700">${fmtQ(it.total)}</td>
-      </tr>`).join('')}
+        <td style="padding:6px 10px;text-align:right;color:var(--rojo)">${it.disc>0?'-'+it.disc+'%':'—'}</td>
+        <td style="padding:6px 10px;text-align:right;font-weight:700">${fmtQ(finalT)}</td>
+      </tr>`;}).join('')}
       </tbody>
     </table>
-    <div style="text-align:right;font-family:var(--font-c);font-size:19px;font-weight:800">TOTAL: ${fmtQ(c.total)}</div>`;
+    <div style="text-align:right;font-family:var(--font-c);font-size:19px;font-weight:800">TOTAL: ${fmtQ(c.items.reduce((s,it)=>{const b=it.price*it.qty;return s+(it.disc>0?b-b*(it.disc/100):b);},0))}</div>`;
   const ft=document.getElementById('ver-ft');
   ft.innerHTML=`<button class="btn bo" onclick="closeModal('modal-ver')">Cerrar</button>
     <button class="btn bd" onclick="exportCotPDF(${c.id})">PDF</button>
-    ${c.descuento>0?`<div style="text-align:right;padding:6px 12px;font-size:13px;color:var(--rojo)">Descuento (${c.descuento}%): − ${fmtQ(c.subtotal*(c.descuento/100))}</div>`:''}
   ${c.status==='Pendiente'?`<button class="btn bp2" onclick="editCot(${c.id});closeModal('modal-ver')">Editar</button>
     <button class="btn bs" onclick="closeModal('modal-ver');askConfirm(${c.id})">Confirmar Compra</button>`:''}`;
   document.getElementById('modal-ver').classList.add('open');
@@ -1272,7 +1281,7 @@ function editCot(id){
   document.getElementById('nc-proj').value=c.proyecto||'';
   document.getElementById('nc-pago').value=c.pago;
   document.getElementById('nc-notas').value=c.notas||'';
-  cart={};c.items.forEach(it=>{cart[it.id]=it.qty;});const _dEl=document.getElementById('nc-desc');if(_dEl)_dEl.value=c.descuento||'';
+  cart={};cartDisc={};c.items.forEach(it=>{cart[it.id]=it.qty;if(it.disc)cartDisc[it.id]=it.disc;});
   renderCartUI();renderPicker();
   goPage('nueva-cot',null);closeModal('modal-ver');
   toast('Editando cotización #'+String(c.id).padStart(3,'0'));
@@ -1441,7 +1450,7 @@ function exportPDF(){
   const notas=document.getElementById('nc-notas').value;
   let sub=0;
   const items=ids.map(id=>{const p=products.find(x=>x.id===id);const qty=cart[id];const tot=p.price*qty;sub+=tot;return{name:p.name,unit:p.unit,qty,price:p.price,total:tot};});
-  const _epd=parseFloat(document.getElementById('nc-desc').value)||0;const _epda=_epd>0?sub*(_epd/100):0;genPDF({id:'BORRADOR',cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:_epd,total:sub-_epda});
+  genPDF({id:'BORRADOR',cliente:cli,tel,fecha,proyecto:proj,pago,notas,items,subtotal:sub,descuento:0,total:sub});
 }
 function exportCotPDF(id){const c=cotizaciones.find(x=>x.id===id);if(!c)return;genPDF(c);}
 function genPDF(c){
@@ -1495,11 +1504,15 @@ function genPDF(c){
   doc.autoTable({
     startY: tableStartY,
     head:[['Cantidad','Descripci\u00f3n','Precio Unitario','Total']],
-    body: c.items.map(it=>[
-      it.qty, it.name,
-      'Q. '+parseFloat(it.price).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}),
-      'Q. '+parseFloat(it.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2})
-    ]),
+    body: c.items.map(it=>{
+      const discLabel=it.disc>0?' (-'+it.disc+'%)':'';
+      return[
+        it.qty,
+        it.name+discLabel,
+        'Q. '+(Math.round(parseFloat(it.price)*100)/100).toFixed(2),
+        'Q. '+(Math.round(parseFloat(it.total)*100)/100).toFixed(2)
+      ];
+    }),
     headStyles:{fillColor:DARK, textColor:WH, fontStyle:'bold', fontSize:9, halign:'center', cellPadding:2.5},
     bodyStyles:{fontSize:9, textColor:BK, cellPadding:2, halign:'center', minCellHeight:6},
     columnStyles:{
@@ -1538,15 +1551,7 @@ function genPDF(c){
   const baseY = (neededY > H) ? 20 : afterTable+4;
   let totY = baseY;
   const totBoxW=68, totBoxX=W-10-totBoxW;
-  if(c.descuento>0){
-    const descAmt=c.subtotal*(c.descuento/100);
-    const descAmtStr='Q. '+(Math.round(descAmt*100)/100).toFixed(2);
-    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(180,50,50);
-    // Label left-aligned at table left margin, amount right-aligned at table right margin
-    doc.text('Descuento ('+c.descuento+'%):', 10, totY+5);
-    doc.text('- '+descAmtStr, W-10, totY+5, {align:'right'});
-    totY += 8;
-  }
+
   doc.setFillColor(...DARK); doc.rect(totBoxX,totY,totBoxW,10,'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...WH);
   doc.text('Total:  Q. '+parseFloat(c.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+6.8, {align:'right'});
@@ -1747,6 +1752,7 @@ async function loadAll(){
           id: parseInt(it.id,10)||it.id,
           qty: parseInt(it.qty,10)||Number(it.qty)||0,
           price: Number(it.price)||0,
+          disc: Number(it.disc)||0,
           total: Number(it.total)||0
         }))
       }));
