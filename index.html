@@ -1501,21 +1501,35 @@ function genPDF(c){
   // We'll track pages to know which is last
   let totalPages = 0;
 
+  // Check if any item has a discount
+  const hasDisc = c.items.some(it=>Number(it.disc)>0);
+
   doc.autoTable({
     startY: tableStartY,
-    head:[['Cantidad','Descripci\u00f3n','Precio Unitario','Total']],
+    head: hasDisc
+      ? [['Cant.','Descripción','P. Unit.','Desc.','Total']]
+      : [['Cantidad','Descripción','Precio Unitario','Total']],
     body: c.items.map(it=>{
-      const discLabel=it.disc>0?' (-'+it.disc+'%)':'';
-      return[
-        it.qty,
-        it.name+discLabel,
-        'Q. '+(Math.round(parseFloat(it.price)*100)/100).toFixed(2),
-        'Q. '+(Math.round(parseFloat(it.total)*100)/100).toFixed(2)
-      ];
+      const disc=Number(it.disc)||0;
+      const baseT=parseFloat(it.price)*(parseInt(it.qty,10)||0);
+      const discAmt=disc>0?baseT*(disc/100):0;
+      const finalT=baseT-discAmt;
+      const priceStr='Q. '+(Math.round(parseFloat(it.price)*100)/100).toFixed(2);
+      const totalStr='Q. '+(Math.round(finalT*100)/100).toFixed(2);
+      if(hasDisc){
+        return[it.qty, it.name, priceStr, disc>0?'-'+disc+'%':'—', totalStr];
+      }
+      return[it.qty, it.name, priceStr, totalStr];
     }),
     headStyles:{fillColor:DARK, textColor:WH, fontStyle:'bold', fontSize:9, halign:'center', cellPadding:2.5},
     bodyStyles:{fontSize:9, textColor:BK, cellPadding:2, halign:'center', minCellHeight:6},
-    columnStyles:{
+    columnStyles: hasDisc ? {
+      0:{cellWidth:18, halign:'center'},
+      1:{halign:'left'},
+      2:{cellWidth:32, halign:'center'},
+      3:{cellWidth:20, halign:'center', textColor:[180,50,50]},
+      4:{cellWidth:32, halign:'center', fontStyle:'bold'},
+    } : {
       0:{cellWidth:28, halign:'center'},
       1:{halign:'left'},
       2:{cellWidth:40, halign:'center'},
@@ -1552,9 +1566,10 @@ function genPDF(c){
   let totY = baseY;
   const totBoxW=68, totBoxX=W-10-totBoxW;
 
+  const realTotal=c.items.reduce((s,it)=>{const disc=Number(it.disc)||0;const b=parseFloat(it.price)*(parseInt(it.qty,10)||0);return s+(disc>0?b-b*(disc/100):b);},0);
   doc.setFillColor(...DARK); doc.rect(totBoxX,totY,totBoxW,10,'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...WH);
-  doc.text('Total:  Q. '+parseFloat(c.total).toLocaleString('es-GT',{minimumFractionDigits:2,maximumFractionDigits:2}), W-13, totY+6.8, {align:'right'});
+  doc.text('Total:  Q. '+(Math.round(realTotal*100)/100).toFixed(2), W-13, totY+6.8, {align:'right'});
 
   if(c.notas){
     doc.setFontSize(9); doc.setTextColor(100,100,100); doc.setFont('helvetica','italic');
